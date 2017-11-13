@@ -57,7 +57,7 @@ class EnhancedMock(unittest.mock.Mock):
             return self.__dict__[name]
         else:
             result = unittest.mock.Mock.__getattr__(self, name)
-            print('in EnhancedMock.__getattr__: ' + name + ", " + str(result.side_effect))
+            #print('in EnhancedMock.__getattr__: ' + name + ", " + str(result.side_effect))
             if isinstance(result, unittest.mock.PropertyMock) and result.__get__:
                 # Only handle the case of a custom getter here...property mocks with a return_value will
                 # be handled in the elif
