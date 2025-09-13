@@ -61,7 +61,7 @@ class EnhancedMock(unittest.mock.Mock):
             if isinstance(result, unittest.mock.PropertyMock) and result.__get__:
                 # Only handle the case of a custom getter here...property mocks with a return_value will
                 # be handled in the elif
-                return result.__get__(self, type(self))            
+                return result.__get__(self, type(self))
             elif isinstance(result, unittest.mock.Mock) and not result.side_effect:
                 # If we have a mock object WITHOUT a side effect, call it
                 # We don't call mocks with side effects because the caller of this
@@ -87,15 +87,37 @@ def from_name(full_name):
     return getattr(core, cls_name)
 
 
-def create_object(cls_str, patches=None):
-    """
-       Create an object by string name, and apply attribute patches.
+# Keep track of what's been patched to avoid double-patching
+_patched_classes = set()
 
-       Usage: create_object('adsk.core.Component', {'name': 'Foo'})
+def create_mock(cls_str, additional_patches=None):
     """
-    if patches is None:
-        patches = {}
+    Create a mock object by class name, applying patches as needed.
+
+    If the class hasn't been patched yet, patches it first. Then creates and returns
+    a mock instance of that class.
+
+    Args:
+        cls_str: Full class name like 'adsk.core.ListItem'
+        additional_patches: Dict of additional patches for this class
+
+    Usage:
+        list_item = create_mock('adsk.core.ListItem')
+        bool_input = create_mock('adsk.core.BoolValueCommandInput', {'_custom': custom_fn})
+    """
+    if additional_patches is None:
+        additional_patches = {}
+
+    # Check if this class needs patching
+    if cls_str not in _patched_classes:
+        from . import patch
+        # Patch just this one class
+        patch_dict = {cls_str: additional_patches}
+        patch.apply_patches(patch_dict)
+        _patched_classes.add(cls_str)
+
+    # Get the patched class and create an instance
     cls = from_name(cls_str)
-    # Standard "base object" patches
-    patches = patch.add_standard_patches(cls_str, patches)
-    return EnhancedMock(cls, patches)
+    inst = cls()
+    unittest.mock.seal(inst)
+    return inst
