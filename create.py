@@ -87,10 +87,7 @@ def from_name(full_name):
     return getattr(core, cls_name)
 
 
-# Keep track of what's been patched to avoid double-patching
-_patched_classes = set()
-
-def create_mock(cls_str, additional_patches=None):
+def create_mock(cls_str, initial_attributes=None):
     """
     Create a mock object by class name, applying patches as needed.
 
@@ -99,25 +96,30 @@ def create_mock(cls_str, additional_patches=None):
 
     Args:
         cls_str: Full class name like 'adsk.core.ListItem'
-        additional_patches: Dict of additional patches for this class
+        initial_properties: Dict of initial attributes for the new mock
 
     Usage:
         list_item = create_mock('adsk.core.ListItem')
         bool_input = create_mock('adsk.core.BoolValueCommandInput', {'_custom': custom_fn})
     """
-    if additional_patches is None:
-        additional_patches = {}
+    if initial_attributes is None:
+        initial_attributes = {}
 
-    # Check if this class needs patching
-    if cls_str not in _patched_classes:
-        from . import patch
-        # Patch just this one class
-        patch_dict = {cls_str: additional_patches}
-        patch.apply_patches(patch_dict)
-        _patched_classes.add(cls_str)
+    # Check if this class needs patching; patching with
+    # the class str in the dict argument is what actually
+    # creates the mock class, even when called with no
+    # patches.  But we only want to do this once per
+    # test session.
+    if not patch.is_already_patched(cls_str):
+        patch.apply_patches({cls_str: {}})
 
     # Get the patched class and create an instance
     cls = from_name(cls_str)
     inst = cls()
+
+    # Set additional patches as attributes on this specific instance
+    for attr_name, attr_value in initial_attributes.items():
+        setattr(inst, attr_name, attr_value)
+
     unittest.mock.seal(inst)
     return inst

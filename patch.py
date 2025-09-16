@@ -30,6 +30,12 @@ def from_name(full_name):
     core = sys.modules[pkg]
     return getattr(core, cls_name)
 
+# Keep track of what's been patched to avoid double-patching
+_patched_classes = set()
+
+def is_already_patched(cls_str):
+    return cls_str in _patched_classes
+
 def apply_patches(patches_by_class=None):
     """Apply patches to specified classes using unittest.mock.patch.
 
@@ -71,9 +77,9 @@ def apply_patches(patches_by_class=None):
 
         # Set up side_effect to return new mock instances with patches applied
         # Use default parameter to capture current value of p
-        def make_create_instance(mc):
+        def make_create_instance(mc: unittest.mock.MagicMock):
             def create_instance(*args, patches=p.copy(), **kwargs):
-                instance = unittest.mock.MagicMock(spec=mc)
+                instance = unittest.mock.MagicMock(spec=mc.__class__)
 
                 # Apply patches to each new instance
                 for patch_name, patch_value in patches.items():
@@ -94,6 +100,18 @@ def apply_patches(patches_by_class=None):
         unittest.mock.seal(mock_class)
 
         # Patch the class with our mock
-        stack.enter_context(unittest.mock.patch(cls_str, mock_class))
+        patch = unittest.mock.patch(cls_str, mock_class)
+        class PatchContext:
+
+            def __enter__(self):
+                _patched_classes.add(cls_str)
+                return patch.start()
+
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                patch.stop()
+                _patched_classes.remove(cls_str)
+
+
+        stack.enter_context(PatchContext())
 
     return stack
