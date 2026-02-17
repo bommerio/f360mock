@@ -59,6 +59,8 @@ def apply_patches(patches_by_class=None):
     stack = ExitStack()
 
     for cls_str in patches_by_class:
+        if is_already_patched(cls_str):
+            continue
         print('Patching ' + cls_str + ': ' + str(patches_by_class[cls_str]))
 
         p = add_standard_patches(cls_str, patches_by_class[cls_str] or {})
